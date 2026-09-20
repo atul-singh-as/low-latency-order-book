@@ -29,20 +29,26 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j
 
 ## Measured results
 
-Intel Xeon @ 2.10 GHz, single shared vCPU, g++ 13.3, `-O3 -march=native -flto`,
-1,000,000 orders, best of 5 runs. An M-series Mac will be meaningfully faster.
+Same machine, same compiler, same run for every column: Intel Xeon @ 2.10 GHz
+(single shared vCPU), g++ 13.3, `-O3 -march=native -flto`, 1,000,000 orders,
+best of 3 runs. Numbers vary run to run on a shared/throttled CPU — these are
+best-of-several, not guaranteed steady-state throughput. Re-run
+`bench_orig.cpp` (original code) and `order_book_benchmark` (optimised code)
+on your own hardware for machine-specific figures; a MacBook Air outperformed
+this Xeon on every row when we checked.
 
-| Workload                         | Original, as configured | Original, `-O3 -flto` | Optimised | Speedup |
+| Workload                         | Original, as configured | Original, `-O3 -flto` | Optimised | Speedup vs configured |
 |----------------------------------|------------------------:|----------------------:|----------:|--------:|
-| add, passive limit orders        |            2.6 M/s      |           8.8 M/s     | **298 M/s** |   34×  |
-| cancel, sequential ids           |            8.8 M/s      |          42.4 M/s     | **345 M/s** |  8.1×  |
-| cancel, random order, 64 levels  |            1.7 M/s      |           6.4 M/s     |  **37 M/s** |  5.8×  |
-| match, 1:1 full fills            |            9.5 M/s      |          40.1 M/s     | **230 M/s** |  5.7×  |
-| mixed feed (60% add/30% cancel/10% aggress) | —            | —                     |  **53 M/s** |    —   |
+| add, passive limit orders        |            1.8 M/s      |           7.6 M/s     | **212 M/s** |  118×  |
+| cancel, sequential ids           |            5.5 M/s      |          37.9 M/s     | **331 M/s** |   60×  |
+| cancel, random order, 64 levels  |            1.4 M/s      |           6.6 M/s     |  **44 M/s** |   31×  |
+| match, 1:1 full fills            |            6.1 M/s      |          33.2 M/s     | **220 M/s** |   36×  |
+| mixed feed (60% add/30% cancel/10% aggress) | —            | —                     |  **60 M/s** |    —   |
 
 The original `CMakeCache.txt` had `CMAKE_BUILD_TYPE` empty, i.e. no
 optimisation flags at all. That alone accounted for a 4–5× loss before any
-code changes.
+code changes (see the "as configured" vs "-O3 -flto" columns, both unmodified
+original code).
 
 **On the 141 M orders/sec target:** the cancel and add benchmarks clear it
 comfortably. The random-access and mixed-feed numbers do not, and they are
@@ -66,11 +72,11 @@ first.
 
 ## Reading the numbers
 
-- **Sequential cancel (345 M/s) is the easy case.** Ids are dense and walked in
+- **Sequential cancel (331 M/s here) is the easy case.** Ids are dense and walked in
   order, so both the id table and the order pool are streamed linearly and the
   hardware prefetcher hides all the latency. Your original benchmark had
   exactly this shape.
-- **Random cancel (37 M/s) is the realistic case.** A real feed cancels orders
+- **Random cancel (44 M/s here) is the realistic case.** A real feed cancels orders
   in an order uncorrelated with insertion, so every cancel is two dependent
   cache misses. At that point you are bound by memory latency, not by the
   algorithm — no data structure gets past roughly one order per miss.
