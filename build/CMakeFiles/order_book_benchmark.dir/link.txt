@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG -flto=thin -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/order_book_benchmark.dir/benchmarks/benchmark.cpp.o -o order_book_benchmark  liborder_book_lib.a
